@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Country Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <main class="shell">
+        <div class="header-block">
+            <p class="eyebrow">Field Reference</p>
+            <h1>Country Explorer</h1>
+        </div>
+
+        <div class="mode-toggle" role="tablist">
+            <button class="mode-btn active" data-mode="single" type="button">Single</button>
+            <button class="mode-btn" data-mode="compare" type="button">Compare</button>
+        </div>
+
+        <div class="search-row" id="singleSearchRow">
+            <input type="text" id="searchBox" class="doc-input" placeholder="Type a country name…" autocomplete="off">
+            <button id="searchBtn" class="btn-stamp" type="button">Search</button>
+        </div>
+
+        <div class="compare-search-row" id="compareSearchRow" hidden>
+            <div class="compare-inputs">
+                <input type="text" id="searchBoxA" class="doc-input" placeholder="First country…" autocomplete="off">
+                <span class="vs-label">VS</span>
+                <input type="text" id="searchBoxB" class="doc-input" placeholder="Second country…" autocomplete="off">
+            </div>
+            <button id="compareBtn" class="btn-stamp" type="button">Compare</button>
+        </div>
+
+        <div id="result">
+            <p class="placeholder-msg">No entry logged yet. Type a country and search to begin.</p>
+        </div>
+
+        <div class="history-wrap" id="historyWrap" hidden>
+            <p class="history-label">Recent Entries</p>
+            <div class="history-list" id="historyList"></div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
