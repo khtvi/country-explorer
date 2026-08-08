@@ -1,4 +1,5 @@
-// Elements
+const API_BASE = 'https://countries.dev';
+
 const modeBtns = document.querySelectorAll('.mode-btn');
 const singleSearchRow = document.getElementById('singleSearchRow');
 const compareSearchRow = document.getElementById('compareSearchRow');
@@ -14,7 +15,6 @@ const compareBtn = document.getElementById('compareBtn');
 const historyWrap = document.getElementById('historyWrap');
 const historyList = document.getElementById('historyList');
 
-// Session-only search history (last 5, most recent first, no duplicates)
 let history = [];
 
 function resetResult() {
@@ -47,7 +47,6 @@ historyList.addEventListener('click', (e) => {
     if (!chip) return;
     const name = chip.dataset.name;
 
-    // Re-run this search in single mode
     modeBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === 'single'));
     singleSearchRow.hidden = false;
     compareSearchRow.hidden = true;
@@ -56,7 +55,6 @@ historyList.addEventListener('click', (e) => {
     runSearch();
 });
 
-// Mode switching
 modeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
         modeBtns.forEach(b => b.classList.remove('active'));
@@ -68,9 +66,8 @@ modeBtns.forEach(btn => {
     });
 });
 
-// Fetch helper — returns the first match from the REST Countries name search
 function fetchCountry(name) {
-    const url = 'https://restcountries.com/v3.1/name/' + encodeURIComponent(name);
+    const url = API_BASE + '/name/' + encodeURIComponent(name);
     return fetch(url).then(response => {
         if (!response.ok) throw new Error('Not found');
         return response.json();
@@ -78,24 +75,23 @@ function fetchCountry(name) {
 }
 
 function formatLanguages(data) {
-    if (!data.languages) return '\u2014';
-    return Object.values(data.languages).join(', ');
+    if (!data.languages || data.languages.length === 0) return '\u2014';
+    return data.languages.map(l => l.name).join(', ');
 }
 
 function formatCurrencies(data) {
-    if (!data.currencies) return '\u2014';
-    return Object.values(data.currencies)
+    if (!data.currencies || data.currencies.length === 0) return '\u2014';
+    return data.currencies
         .map(c => c.symbol ? `${c.name} (${c.symbol})` : c.name)
         .join(', ');
 }
 
-// Build a country card. compact=true is used for the side-by-side compare view.
 function buildCountryCard(data, compact) {
-    const name = data.name.common;
-    const capital = data.capital && data.capital[0] ? data.capital[0] : '\u2014';
+    const name = data.name;
+    const capital = data.capital || '\u2014';
     const region = data.region || '\u2014';
     const population = data.population != null ? data.population.toLocaleString() : '\u2014';
-    const code = (data.cca2 || data.cca3 || '??').toUpperCase();
+    const code = (data.alpha2Code || data.alpha3Code || '??').toUpperCase();
     const flagUrl = (data.flags && (data.flags.png || data.flags.svg)) || '';
 
     if (compact) {
@@ -141,7 +137,6 @@ function notFoundHTML(message) {
         <p class="not-found-msg">${message}</p>`;
 }
 
-// Single search
 function runSearch() {
     const name = searchBox.value.trim();
     if (!name) return;
@@ -150,15 +145,15 @@ function runSearch() {
 
     fetchCountry(name)
         .then(data => {
+            if (!data) throw new Error('Not found');
             result.innerHTML = buildCountryCard(data, false);
-            addToHistory({ name: data.name.common, flag: (data.flags && (data.flags.png || data.flags.svg)) || '' });
+            addToHistory({ name: data.name, flag: (data.flags && (data.flags.png || data.flags.svg)) || '' });
         })
         .catch(() => {
             result.innerHTML = notFoundHTML('No match found. Check the spelling and try again.');
         });
 }
 
-// Compare search
 function runCompare() {
     const nameA = searchBoxA.value.trim();
     const nameB = searchBoxB.value.trim();
@@ -168,21 +163,21 @@ function runCompare() {
 
     Promise.all([fetchCountry(nameA), fetchCountry(nameB)])
         .then(([dataA, dataB]) => {
+            if (!dataA || !dataB) throw new Error('Not found');
             result.innerHTML = `
                 <div class="compare-grid">
                     ${buildCountryCard(dataA, true)}
                     <div class="compare-divider"><span class="vs-tag">VS</span></div>
                     ${buildCountryCard(dataB, true)}
                 </div>`;
-            addToHistory({ name: dataA.name.common, flag: (dataA.flags && (dataA.flags.png || dataA.flags.svg)) || '' });
-            addToHistory({ name: dataB.name.common, flag: (dataB.flags && (dataB.flags.png || dataB.flags.svg)) || '' });
+            addToHistory({ name: dataA.name, flag: (dataA.flags && (dataA.flags.png || dataA.flags.svg)) || '' });
+            addToHistory({ name: dataB.name, flag: (dataB.flags && (dataB.flags.png || dataB.flags.svg)) || '' });
         })
         .catch(() => {
             result.innerHTML = notFoundHTML('One or both countries didn\u2019t match. Check spelling and compare again.');
         });
 }
 
-// Wire up events
 searchBtn.addEventListener('click', runSearch);
 searchBox.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') runSearch();
