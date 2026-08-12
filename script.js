@@ -1,4 +1,4 @@
-const API_BASE = 'https://countries.dev';
+const API_BASE = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
 
 const modeBtns = document.querySelectorAll('.mode-btn');
 const singleSearchRow = document.getElementById('singleSearchRow');
@@ -17,13 +17,18 @@ const historyList = document.getElementById('historyList');
 
 let history = [];
 
-function resetResult() {
-    result.innerHTML = '<p class="placeholder-msg">No entry logged yet. Type a country and search to begin.</p>';
+function setState(state) {
+    result.className = 'state-' + state;
 }
 
-function addToHistory(entry) {
-    history = history.filter(item => item.name !== entry.name);
-    history.unshift(entry);
+function resetResult() {
+    setState('idle');
+    result.innerHTML = '<p class="placeholder-msg">The archive is waiting. Type any topic — a place, a person, an event — and search.</p>';
+}
+
+function addToHistory(title) {
+    history = history.filter(item => item !== title);
+    history.unshift(title);
     if (history.length > 5) history = history.slice(0, 5);
     renderHistory();
 }
@@ -35,23 +40,20 @@ function renderHistory() {
     }
     historyWrap.hidden = false;
     historyList.innerHTML = history
-        .map(item => `
-            <button type="button" class="history-chip" data-name="${item.name}">
-                <img src="${item.flag}" alt="">${item.name}
-            </button>`)
+        .map(title => `<button type="button" class="history-chip" data-title="${title}">${title}</button>`)
         .join('');
 }
 
 historyList.addEventListener('click', (e) => {
     const chip = e.target.closest('.history-chip');
     if (!chip) return;
-    const name = chip.dataset.name;
+    const title = chip.dataset.title;
 
     modeBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === 'single'));
     singleSearchRow.hidden = false;
     compareSearchRow.hidden = true;
 
-    searchBox.value = name;
+    searchBox.value = title;
     runSearch();
 });
 
@@ -66,115 +68,80 @@ modeBtns.forEach(btn => {
     });
 });
 
-function fetchCountry(name) {
-    const url = API_BASE + '/name/' + encodeURIComponent(name);
+function fetchTopic(topic) {
+    const url = API_BASE + encodeURIComponent(topic);
     return fetch(url).then(response => {
         if (!response.ok) throw new Error('Not found');
         return response.json();
-    }).then(data => data[0]);
+    });
 }
 
-function formatLanguages(data) {
-    if (!data.languages || data.languages.length === 0) return '\u2014';
-    return data.languages.map(l => l.name).join(', ');
-}
+function buildPageCard(data, compact) {
+    const thumbHTML = data.thumbnail
+        ? `<img class="page-thumb" src="${data.thumbnail.source}" alt="${data.title}">`
+        : '';
 
-function formatCurrencies(data) {
-    if (!data.currencies || data.currencies.length === 0) return '\u2014';
-    return data.currencies
-        .map(c => c.symbol ? `${c.name} (${c.symbol})` : c.name)
-        .join(', ');
-}
+    const descHTML = (!compact && data.description)
+        ? `<p class="page-desc">${data.description}</p>`
+        : '';
 
-function buildCountryCard(data, compact) {
-    const name = data.name;
-    const capital = data.capital || '\u2014';
-    const region = data.region || '\u2014';
-    const population = data.population != null ? data.population.toLocaleString() : '\u2014';
-    const code = (data.alpha2Code || data.alpha3Code || '??').toUpperCase();
-    const flagUrl = (data.flags && (data.flags.png || data.flags.svg)) || '';
-
-    if (compact) {
-        return `
-            <div class="country-card">
-                <div class="flag-frame compact">
-                    <img src="${flagUrl}" alt="Flag of ${name}">
-                </div>
-                <h3 class="country-name compact">${name}</h3>
-                <div class="manifest compact">
-                    <div class="manifest-row"><span class="m-label">Capital</span><span class="m-value">${capital}</span></div>
-                    <div class="manifest-row"><span class="m-label">Pop.</span><span class="m-value">${population}</span></div>
-                </div>
-            </div>`;
-    }
+    const pageUrl = data.content_urls && data.content_urls.desktop && data.content_urls.desktop.page;
+    const linkHTML = (!compact && pageUrl)
+        ? `<a class="page-link" href="${pageUrl}" target="_blank" rel="noopener">Read full article \u2192</a>`
+        : '';
 
     return `
-        <div class="country-card">
-            <div class="flag-frame">
-                <img src="${flagUrl}" alt="Flag of ${name}">
-                <div class="stamp show">
-                    <span class="line1">Verified</span>
-                    <span class="code">${code}</span>
-                </div>
-            </div>
-            <h2 class="country-name">${name}</h2>
-            <div class="manifest">
-                <div class="manifest-row"><span class="m-label">Capital</span><span class="m-value">${capital}</span></div>
-                <div class="manifest-row"><span class="m-label">Region</span><span class="m-value">${region}</span></div>
-                <div class="manifest-row"><span class="m-label">Population</span><span class="m-value">${population}</span></div>
-                <div class="manifest-row"><span class="m-label">Languages</span><span class="m-value">${formatLanguages(data)}</span></div>
-                <div class="manifest-row"><span class="m-label">Currency</span><span class="m-value">${formatCurrencies(data)}</span></div>
-            </div>
+        <div class="page-card${compact ? ' compact' : ''}">
+            <h2 class="page-title">${data.title}</h2>
+            ${descHTML}
+            ${thumbHTML}
+            <p class="page-extract">${data.extract}</p>
+            ${linkHTML}
         </div>`;
 }
 
-function notFoundHTML(message) {
-    return `
-        <div class="stamp error-stamp show">
-            <span class="line1">Not</span>
-            <span class="code">Found</span>
-        </div>
-        <p class="not-found-msg">${message}</p>`;
-}
-
 function runSearch() {
-    const name = searchBox.value.trim();
-    if (!name) return;
+    const topic = searchBox.value.trim();
+    if (!topic) return;
 
-    result.innerHTML = '<p class="placeholder-msg">Checking the records\u2026</p>';
+    setState('loading');
+    result.innerHTML = '<p class="placeholder-msg">Pulling the entry from the archive\u2026</p>';
 
-    fetchCountry(name)
+    fetchTopic(topic)
         .then(data => {
-            if (!data) throw new Error('Not found');
-            result.innerHTML = buildCountryCard(data, false);
-            addToHistory({ name: data.name, flag: (data.flags && (data.flags.png || data.flags.svg)) || '' });
+            setState('found');
+            result.innerHTML = buildPageCard(data, false);
+            addToHistory(data.title);
         })
         .catch(() => {
-            result.innerHTML = notFoundHTML('No match found. Check the spelling and try again.');
+            setState('error');
+            result.innerHTML = `<p class="not-found-msg">No entry in the archive for "${topic}". Check the spelling and try again.</p>`;
         });
 }
 
 function runCompare() {
-    const nameA = searchBoxA.value.trim();
-    const nameB = searchBoxB.value.trim();
-    if (!nameA || !nameB) return;
+    const topicA = searchBoxA.value.trim();
+    const topicB = searchBoxB.value.trim();
+    if (!topicA || !topicB) return;
 
-    result.innerHTML = '<p class="placeholder-msg">Checking both records\u2026</p>';
+    setState('loading');
+    result.innerHTML = '<p class="placeholder-msg">Pulling both entries from the archive\u2026</p>';
 
-    Promise.all([fetchCountry(nameA), fetchCountry(nameB)])
+    Promise.all([fetchTopic(topicA), fetchTopic(topicB)])
         .then(([dataA, dataB]) => {
-            if (!dataA || !dataB) throw new Error('Not found');
+            setState('found');
             result.innerHTML = `
                 <div class="compare-grid">
-                    ${buildCountryCard(dataA, true)}
+                    ${buildPageCard(dataA, true)}
                     <div class="compare-divider"><span class="vs-tag">VS</span></div>
-                    ${buildCountryCard(dataB, true)}
+                    ${buildPageCard(dataB, true)}
                 </div>`;
-            addToHistory({ name: dataA.name, flag: (dataA.flags && (dataA.flags.png || dataA.flags.svg)) || '' });
-            addToHistory({ name: dataB.name, flag: (dataB.flags && (dataB.flags.png || dataB.flags.svg)) || '' });
+            addToHistory(dataA.title);
+            addToHistory(dataB.title);
         })
         .catch(() => {
-            result.innerHTML = notFoundHTML('One or both countries didn\u2019t match. Check spelling and compare again.');
+            setState('error');
+            result.innerHTML = '<p class="not-found-msg">One or both topics weren\u2019t found. Check spelling and compare again.</p>';
         });
 }
 
